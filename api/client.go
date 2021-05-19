@@ -7,16 +7,17 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"github.com/spf13/viper"
+
 	"github.com/op/go-logging"
+	"github.com/spf13/viper"
 )
 
 type Client struct {
-	user string
-	password string
+	user      string
+	password  string
 	piot_host string
-	log *logging.Logger
-	token string
+	log       *logging.Logger
+	token     string
 }
 
 func NewClient(logger *logging.Logger) *Client {
@@ -58,12 +59,12 @@ func (c *Client) execute(method string, path string, body *[]byte) (*http.Respon
 		req.Header.Add("Content-Type", "application/json")
 	}
 
-	if (c.token == "") {
+	if c.token == "" {
 		c.log.Debug("Setting basic authorization (header)")
 		req.SetBasicAuth(c.user, c.password)
 	} else {
 		c.log.Debugf("Setting bearer authorization (reusing token %s)", c.token)
-		req.Header.Add("Authorization", "Bearer " + c.token)
+		req.Header.Add("Authorization", "Bearer "+c.token)
 	}
 	httpClient := &http.Client{}
 
@@ -122,16 +123,16 @@ func (c *Client) deleteSuccessful(path string) (*http.Response, error) {
 	return c.successfulResponse(resp)
 }
 
-func (c *Client) Login() (error) {
+func (c *Client) Login() error {
 
 	if c.token != "" {
 		c.log.Debug("Reusing existing token")
 	}
 
-	c.log.Infof("Logging as: %s", c.user + c.password)
+	c.log.Infof("Logging as: %s", c.user+c.password)
 
 	var loginRequest struct {
-		User string `json:"email"`
+		User     string `json:"email"`
 		Password string `json:"password"`
 	}
 
@@ -156,7 +157,7 @@ func (c *Client) Login() (error) {
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		c.log.Errorf("Failed to parse json from piot server response. Run " +
-					 "client in verbose mode to see raw server communication.")
+			"client in verbose mode to see raw server communication.")
 		return err
 	}
 
@@ -178,10 +179,10 @@ func (c *Client) GetThings(org *string) ([]Thing, error) {
 			}
 		`,
 	}
-    bodyBytes, err := json.Marshal(jsonData)
-    if err != nil {
+	bodyBytes, err := json.Marshal(jsonData)
+	if err != nil {
 		return result, err
-    }
+	}
 
 	resp, err := c.postSuccessful("query", &bodyBytes)
 	if err != nil {
@@ -190,7 +191,7 @@ func (c *Client) GetThings(org *string) ([]Thing, error) {
 
 	var data struct {
 		Data struct {
-			Things []Thing  `json:"things"`
+			Things []Thing `json:"things"`
 		}
 	}
 
@@ -216,10 +217,10 @@ func (c *Client) GetOrgs() ([]Org, error) {
 			}
 		`,
 	}
-    bodyBytes, err := json.Marshal(jsonData)
-    if err != nil {
+	bodyBytes, err := json.Marshal(jsonData)
+	if err != nil {
 		return result, err
-    }
+	}
 
 	resp, err := c.postSuccessful("query", &bodyBytes)
 	if err != nil {
@@ -228,7 +229,7 @@ func (c *Client) GetOrgs() ([]Org, error) {
 
 	var data struct {
 		Data struct {
-			Orgs []Org`json:"orgs"`
+			Orgs []Org `json:"orgs"`
 		}
 	}
 
@@ -268,4 +269,42 @@ func (c *Client) DeleteThing() error {
 	c.log.Infof("%v", jsonData)
 
 	return nil
+}
+
+func (c *Client) GetUserProfile() (UserProfile, error) {
+
+	var result UserProfile
+
+	jsonData := map[string]string{
+		"query": `
+			{
+				userProfile {
+					email, is_admin, org_id, orgs {id, name} 
+				}
+			}
+		`,
+	}
+
+	bodyBytes, err := json.Marshal(jsonData)
+	if err != nil {
+		return result, err
+	}
+
+	resp, err := c.postSuccessful("query", &bodyBytes)
+	if err != nil {
+		return result, err
+	}
+
+	var data struct {
+		Data struct {
+			Profile UserProfile `json:"userProfile"`
+		}
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&data)
+	if err != nil {
+		c.log.Error(err)
+	}
+
+	return data.Data.Profile, nil
 }

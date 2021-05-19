@@ -3,15 +3,16 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"github.com/spf13/cobra"
-	"text/tabwriter"
 	"piot-cli/api"
+	"text/tabwriter"
+
+	"github.com/spf13/cobra"
 )
 
 var orgCmd = &cobra.Command{
 	Use:   "org",
 	Short: "Get list of organizations",
-	Long: ``,
+	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		client := api.NewClient(log)
 

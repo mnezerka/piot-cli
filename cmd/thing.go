@@ -3,16 +3,17 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"github.com/spf13/cobra"
-	"text/tabwriter"
 	"piot-cli/api"
+	"text/tabwriter"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 var thingCmd = &cobra.Command{
 	Use:   "thing",
 	Short: "Get list of things",
-	Long: ``,
+	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		client := api.NewClient(log)
 
@@ -48,7 +49,7 @@ var thingCmd = &cobra.Command{
 var thingDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete thing",
-	Long: ``,
+	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		client := api.NewClient(log)
 
@@ -63,7 +64,7 @@ var thingDeleteCmd = &cobra.Command{
 var thingCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create thing",
-	Long: ``,
+	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		client := api.NewClient(log)
 
@@ -76,9 +77,9 @@ var thingCreateCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(thingCmd)
+	rootCmd.AddCommand(profileCmd)
 
-	thingCmd.AddCommand(thingDeleteCmd)
+	profileCmd.AddCommand(thingDeleteCmd)
 
-	thingCmd.AddCommand(thingCreateCmd)
+	profileCmd.AddCommand(thingCreateCmd)
 }
