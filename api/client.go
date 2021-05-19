@@ -124,6 +124,10 @@ func (c *Client) deleteSuccessful(path string) (*http.Response, error) {
 
 func (c *Client) Login() (error) {
 
+	if c.token != "" {
+		c.log.Debug("Reusing existing token")
+	}
+
 	c.log.Infof("Logging as: %s", c.user + c.password)
 
 	var loginRequest struct {
@@ -234,4 +238,34 @@ func (c *Client) GetOrgs() ([]Org, error) {
 	}
 
 	return data.Data.Orgs, nil
+}
+
+func (c *Client) CreateThing() error {
+
+	jsonData := map[string]string{
+		"query": fmt.Sprintf(`
+			mutation {
+				createThing(name: "%s", type: "%s") {id}
+			}
+		`, "newname", "device"),
+	}
+
+	c.log.Infof("%v", jsonData)
+
+	return nil
+}
+
+func (c *Client) DeleteThing() error {
+
+	jsonData := map[string]string{
+		"query": fmt.Sprintf(`
+			mutation {
+				deleteThing(id : "%s")
+			}
+		`, "idtodel"),
+	}
+
+	c.log.Infof("%v", jsonData)
+
+	return nil
 }

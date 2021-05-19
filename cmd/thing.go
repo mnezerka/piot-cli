@@ -45,7 +45,40 @@ var thingCmd = &cobra.Command{
 	},
 }
 
+var thingDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete thing",
+	Long: ``,
+	Run: func(cmd *cobra.Command, args []string) {
+		client := api.NewClient(log)
+
+		err := client.Login()
+		handleError(err)
+
+		err = client.DeleteThing()
+		handleError(err)
+	},
+}
+
+var thingCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create thing",
+	Long: ``,
+	Run: func(cmd *cobra.Command, args []string) {
+		client := api.NewClient(log)
+
+		err := client.Login()
+		handleError(err)
+
+		err = client.CreateThing()
+		handleError(err)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(thingCmd)
 
+	thingCmd.AddCommand(thingDeleteCmd)
+
+	thingCmd.AddCommand(thingCreateCmd)
 }
