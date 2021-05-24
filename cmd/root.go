@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mitchellh/go-homedir"
 	"github.com/op/go-logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -20,6 +21,7 @@ const (
 )
 
 var (
+	config_cfg_file  string
 	config_user      string
 	config_password  string
 	config_log_level string
@@ -49,19 +51,38 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
+	rootCmd.PersistentFlags().StringVar(&config_cfg_file, "config", "", "config file (default is $HOME/.piot)")
 	rootCmd.PersistentFlags().StringVar(&config_user, "user", "", "User")
 	rootCmd.PersistentFlags().StringVar(&config_password, "password", "", "Password")
 	rootCmd.PersistentFlags().StringVarP(&config_log_level, "log-level", "", "INFO", "Log level (CRITICIAL, ERROR, WARNING, NOTICE, INFO, DEBUG)")
 	rootCmd.PersistentFlags().StringVar(&config_org, "org", "", "Organization")
 
-	viper.BindPFlag("user", rootCmd.PersistentFlags().Lookup("user"))
-	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
+	viper.BindPFlag("piot.user", rootCmd.PersistentFlags().Lookup("user"))
+	viper.BindPFlag("piot.password", rootCmd.PersistentFlags().Lookup("password"))
 	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
 	viper.BindPFlag("org", rootCmd.PersistentFlags().Lookup("org"))
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+
+	if config_cfg_file != "" {
+		// Use config file from the flag.
+		viper.SetConfigFile(config_cfg_file)
+	} else {
+		// Find home directory.
+		home, err := homedir.Dir()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		// Search config in home directory with name ".piot" (without extension).
+		viper.AddConfigPath(home)
+		viper.AddConfigPath(".")
+		viper.SetConfigName(".piot")
+		viper.SetConfigType("yaml")
+	}
 
 	viper.SetEnvPrefix("piot")
 	replacer := strings.NewReplacer(".", "_")
