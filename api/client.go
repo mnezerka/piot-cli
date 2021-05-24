@@ -41,7 +41,7 @@ func (c *Client) execute(method string, path string, body *[]byte) (*http.Respon
 	var url string
 	url = fmt.Sprintf("https://%s/%s", c.piot_host, path)
 
-	c.log.Debugf("%s Request to: %s", method, url)
+	c.log.Debugf("------%s Request to: %s", method, url)
 	if body != nil {
 		c.log.Debugf("Request body: %s", string(*body))
 		bodyIoReader = bytes.NewBuffer(*body)
@@ -123,13 +123,71 @@ func (c *Client) deleteSuccessful(path string) (*http.Response, error) {
 	return c.successfulResponse(resp)
 }
 
+func (c *Client) gqlQuerySuccessful(gql string) (*http.Response, error) {
+
+	jsonData := map[string]string{
+		"query": fmt.Sprintf(`%s`, gql),
+	}
+
+	bodyBytes, err := json.Marshal(jsonData)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.postSuccessful("query", &bodyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// check gql error inside successfull response
+	var data struct {
+		Errors []GqlError `json:"errors"`
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(data.Errors) > 0 {
+
+		var errorMessage string
+
+		for i := 0; i < len(data.Errors); i++ {
+
+			if i > 0 {
+				errorMessage += "\n"
+			}
+
+			errorMessage += fmt.Sprintf("GraphQL error: msg='%s'", data.Errors[i].Message)
+			for j := 0; j < len(data.Errors[i].Locations); j++ {
+				errorMessage += fmt.Sprintf(" line=%d, col=%d",
+					data.Errors[i].Locations[j].Line,
+					data.Errors[i].Locations[j].Column,
+				)
+			}
+		}
+
+		return resp, fmt.Errorf("%s", errorMessage)
+	}
+
+	resp.Body = ioutil.NopCloser(bytes.NewReader(body))
+
+	return resp, nil
+}
+
 func (c *Client) Login() error {
 
 	if c.token != "" {
 		c.log.Debug("Reusing existing token")
 	}
 
-	c.log.Infof("Logging as: %s", c.user+c.password)
+	c.log.Infof("Logging as: %s", c.user)
 
 	var loginRequest struct {
 		User     string `json:"email"`
@@ -166,25 +224,23 @@ func (c *Client) Login() error {
 	return nil
 }
 
-func (c *Client) GetThings(org *string) ([]Thing, error) {
+func (c *Client) GetThings(all bool) ([]Thing, error) {
 
 	var result []Thing
 
-	jsonData := map[string]string{
-		"query": `
-			{
-				things (all: false) {
-					id, name, type, alias, enabled, last_seen, store_influxdb, store_mysqldb
-				}
-			}
-		`,
-	}
-	bodyBytes, err := json.Marshal(jsonData)
-	if err != nil {
-		return result, err
+	all_str := "false"
+	if all {
+		all_str = "true"
 	}
 
-	resp, err := c.postSuccessful("query", &bodyBytes)
+	gql := fmt.Sprintf(`
+		{
+			things (all: %s) {
+				id, name, type, alias, enabled, last_seen, last_seen_interval, store_influxdb, store_mysqldb
+			}
+		}
+		`, all_str)
+	resp, err := c.gqlQuerySuccessful(gql)
 	if err != nil {
 		return result, err
 	}
@@ -204,25 +260,15 @@ func (c *Client) GetThings(org *string) ([]Thing, error) {
 	return data.Data.Things, nil
 }
 
-func (c *Client) GetOrgs() ([]Org, error) {
+type OrgFilterFunctionType = func(s *Org) bool
+
+func (c *Client) GetOrgs(filter OrgFilterFunctionType) ([]Org, error) {
 
 	var result []Org
 
-	jsonData := map[string]string{
-		"query": `
-			{
-				orgs {
-					id, name
-				}
-			}
-		`,
-	}
-	bodyBytes, err := json.Marshal(jsonData)
-	if err != nil {
-		return result, err
-	}
+	gql := "{orgs {id, name}}"
 
-	resp, err := c.postSuccessful("query", &bodyBytes)
+	resp, err := c.gqlQuerySuccessful(gql)
 	if err != nil {
 		return result, err
 	}
@@ -235,25 +281,90 @@ func (c *Client) GetOrgs() ([]Org, error) {
 
 	err = json.NewDecoder(resp.Body).Decode(&data)
 	if err != nil {
-		c.log.Error(err)
+		return result, err
 	}
 
-	return data.Data.Orgs, nil
+	result = data.Data.Orgs
+
+	// apply filtering if filter function was provided
+	if filter != nil {
+		var filteredResult []Org
+		for _, o := range data.Data.Orgs {
+			if filter(&o) {
+				filteredResult = append(filteredResult, o)
+			}
+		}
+		result = filteredResult
+	}
+
+	return result, nil
 }
 
-func (c *Client) CreateThing() error {
+func (c *Client) GetOrgByName(name string) (*Org, error) {
 
-	jsonData := map[string]string{
-		"query": fmt.Sprintf(`
-			mutation {
-				createThing(name: "%s", type: "%s") {id}
-			}
-		`, "newname", "device"),
+	orgs, err := c.GetOrgs(func(org *Org) bool { return org.Name == name })
+
+	if err != nil {
+		return nil, err
 	}
 
-	c.log.Infof("%v", jsonData)
+	if len(orgs) > 0 {
+		return &orgs[0], nil
+	}
 
-	return nil
+	return nil, nil
+}
+
+func (c *Client) SetCurrentOrg(name string) error {
+
+	org, err := c.GetOrgByName(name)
+	if err != nil {
+		return err
+	}
+
+	if org == nil {
+		return fmt.Errorf("Organization '%s' does not exist", name)
+	}
+
+	gql := fmt.Sprintf(`mutation { updateUserProfile(profile: {org_id: "%s"}) {org_id}}`, org.Id)
+	resp, err := c.gqlQuerySuccessful(gql)
+
+	c.log.Infof("result of set: %v", resp.Body)
+	return err
+}
+
+func (c *Client) CreateThing(name, thing_type string) (string, error) {
+
+	c.log.Infof("Creating new thing: name='%s', type='%s'", name, thing_type)
+
+	gql := fmt.Sprintf(`
+		mutation {
+			createThing(name: "%s", type: "%s") {id}
+		}
+	`, name, thing_type)
+
+	resp, err := c.gqlQuerySuccessful(gql)
+	if err != nil {
+		return "", err
+	}
+
+	c.log.Infof("%v", resp)
+
+	/*
+		var data struct {
+			Data struct {
+				Thing Thing `json:"thing"`
+			}
+		}
+
+		err = json.NewDecoder(resp.Body).Decode(&data)
+		if err != nil {
+			return "", err
+		}
+
+		return data.Thing.Id, nil
+	*/
+	return "id", nil
 }
 
 func (c *Client) DeleteThing() error {
@@ -275,22 +386,14 @@ func (c *Client) GetUserProfile() (UserProfile, error) {
 
 	var result UserProfile
 
-	jsonData := map[string]string{
-		"query": `
-			{
-				userProfile {
-					email, is_admin, org_id, orgs {id, name} 
-				}
+	gql := `
+		{
+			userProfile {
+				email, is_admin, org_id, orgs {id, name} 
 			}
-		`,
-	}
-
-	bodyBytes, err := json.Marshal(jsonData)
-	if err != nil {
-		return result, err
-	}
-
-	resp, err := c.postSuccessful("query", &bodyBytes)
+		}
+	`
+	resp, err := c.gqlQuerySuccessful(gql)
 	if err != nil {
 		return result, err
 	}

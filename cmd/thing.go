@@ -10,6 +10,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	config_all        bool
+	config_thing_type string
+)
+
 var thingCmd = &cobra.Command{
 	Use:   "thing",
 	Short: "Get list of things",
@@ -20,24 +25,35 @@ var thingCmd = &cobra.Command{
 		err := client.Login()
 		handleError(err)
 
-		things, err := client.GetThings(nil)
+		things, err := client.GetThings(config_all)
 		handleError(err)
 
+		// use tabwriter.Debug flag (last arg) to see column borders
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, OUTPUT_PADDING, ' ', 0)
-		fmt.Fprintf(w, "ID\tNAME\tALIAS\tTYPE\tENABLED\tLAST SEEN\tINFLUXDB\tMYSQL\n")
+		fmt.Fprintf(w, "NAME\tALIAS\tTYPE\tENABLED\t%s\tINFLUXDB\tMYSQL\t\n", fmt.Sprintf(DefaultColor, "LAST SEEN"))
 		for i := 0; i < len(things); i++ {
 
 			tm := time.Unix(int64(things[i].LastSeen), 0)
-
 			td := time.Now().Sub(tm).Truncate(time.Second)
+			age := formatAge(td)
 
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%v\t%v\t%v\t%v\n",
-				things[i].Id,
+			if things[i].LastSeenInterval > 0 {
+				time_diff := time.Now().Unix() - int64(things[i].LastSeen)
+				if time_diff > int64(things[i].LastSeenInterval) {
+					age = fmt.Sprintf(RedColor, age)
+				} else {
+					age = fmt.Sprintf(GreenColor, age)
+				}
+			} else {
+				age = fmt.Sprintf(DefaultColor, age)
+			}
+
+			fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%s\t%v\t%v\t\n",
 				things[i].Name,
 				things[i].Alias,
 				things[i].Type,
 				things[i].Enabled,
-				td,
+				age,
 				things[i].StoreInfluxDb,
 				things[i].StoreMysqlDb,
 			)
@@ -63,23 +79,28 @@ var thingDeleteCmd = &cobra.Command{
 
 var thingCreateCmd = &cobra.Command{
 	Use:   "create",
-	Short: "Create thing",
+	Short: "Create new thing",
 	Long:  ``,
+	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := api.NewClient(log)
 
 		err := client.Login()
 		handleError(err)
 
-		err = client.CreateThing()
+		id, err := client.CreateThing(args[0], config_thing_type)
 		handleError(err)
+
+		log.Infof("%s", id)
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(profileCmd)
+	rootCmd.AddCommand(thingCmd)
+	thingCmd.Flags().BoolVar(&config_all, "all", false, "Show all things across orgs")
 
-	profileCmd.AddCommand(thingDeleteCmd)
+	thingCmd.AddCommand(thingDeleteCmd)
 
-	profileCmd.AddCommand(thingCreateCmd)
+	thingCmd.AddCommand(thingCreateCmd)
+	thingCreateCmd.Flags().StringVar(&config_thing_type, "type", "device", "Thing type (device, sensor, switch)")
 }

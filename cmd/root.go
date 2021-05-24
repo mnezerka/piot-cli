@@ -25,7 +25,8 @@ var (
 	config_user      string
 	config_password  string
 	config_log_level string
-	config_org       string
+
+//	config_org       string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -55,12 +56,12 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&config_user, "user", "", "User")
 	rootCmd.PersistentFlags().StringVar(&config_password, "password", "", "Password")
 	rootCmd.PersistentFlags().StringVarP(&config_log_level, "log-level", "", "INFO", "Log level (CRITICIAL, ERROR, WARNING, NOTICE, INFO, DEBUG)")
-	rootCmd.PersistentFlags().StringVar(&config_org, "org", "", "Organization")
+	//	rootCmd.PersistentFlags().StringVar(&config_org, "org", "", "Organization")
 
-	viper.BindPFlag("piot.user", rootCmd.PersistentFlags().Lookup("user"))
-	viper.BindPFlag("piot.password", rootCmd.PersistentFlags().Lookup("password"))
+	viper.BindPFlag("user", rootCmd.PersistentFlags().Lookup("user"))
+	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
 	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
-	viper.BindPFlag("org", rootCmd.PersistentFlags().Lookup("org"))
+	//	viper.BindPFlag("org", rootCmd.PersistentFlags().Lookup("org"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -90,6 +91,12 @@ func initConfig() {
 	viper.SetDefault("piot.host", "iot.pavoucek.net/api")
 	viper.AutomaticEnv() // read in environment variables that match
 
+	// If a config file is found, read it in.
+	var configFileUsed string
+	if err := viper.ReadInConfig(); err == nil {
+		configFileUsed = viper.ConfigFileUsed()
+	}
+
 	// configure logging
 	var logLevelStr = viper.GetString("log.level")
 	// try to convert string log level
@@ -106,4 +113,8 @@ func initConfig() {
 	)
 	logging.SetBackend(formatterStdErr)
 	logging.SetLevel(logLevel, LOGGER_MODULE)
+
+	if len(configFileUsed) > 0 {
+		log.Infof("Using config file: '%s'", configFileUsed)
+	}
 }
