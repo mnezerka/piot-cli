@@ -21,10 +21,15 @@ const (
 )
 
 var (
-	config_cfg_file  string
-	config_user      string
-	config_password  string
-	config_log_level string
+	config_cfg_file          string
+	config_piot_url          string
+	config_piot_user         string
+	config_piot_password     string
+	config_log_level         string
+	config_format            string
+	config_influxdb_url      string
+	config_influxdb_user     string
+	config_influxdb_password string
 
 //	config_org       string
 )
@@ -53,14 +58,23 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&config_cfg_file, "config", "", "config file (default is $HOME/.piot)")
-	rootCmd.PersistentFlags().StringVar(&config_user, "user", "", "User")
-	rootCmd.PersistentFlags().StringVar(&config_password, "password", "", "Password")
+	rootCmd.PersistentFlags().StringVar(&config_piot_url, "piot-url", "", "PIOT API url")
+	rootCmd.PersistentFlags().StringVar(&config_piot_user, "piot-user", "", "User")
+	rootCmd.PersistentFlags().StringVar(&config_piot_password, "piot-password", "", "Password")
 	rootCmd.PersistentFlags().StringVarP(&config_log_level, "log-level", "", "INFO", "Log level (CRITICIAL, ERROR, WARNING, NOTICE, INFO, DEBUG)")
 	//	rootCmd.PersistentFlags().StringVar(&config_org, "org", "", "Organization")
 
-	viper.BindPFlag("user", rootCmd.PersistentFlags().Lookup("user"))
-	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
+	rootCmd.PersistentFlags().StringVar(&config_influxdb_url, "influxdb-url", "", "InfluxDB URL")
+	rootCmd.PersistentFlags().StringVar(&config_influxdb_user, "influxdb-user", "", "InfluxDB User")
+	rootCmd.PersistentFlags().StringVar(&config_influxdb_password, "influxdb-password", "", "InfluxDB Password")
+
+	viper.BindPFlag("piot.url", rootCmd.PersistentFlags().Lookup("piot-url"))
+	viper.BindPFlag("piot.user", rootCmd.PersistentFlags().Lookup("piot-user"))
+	viper.BindPFlag("piot.password", rootCmd.PersistentFlags().Lookup("piot-password"))
 	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
+	viper.BindPFlag("influxdb.url", rootCmd.PersistentFlags().Lookup("influxdb-url"))
+	viper.BindPFlag("influxdb.user", rootCmd.PersistentFlags().Lookup("influxdb-user"))
+	viper.BindPFlag("influxdb.password", rootCmd.PersistentFlags().Lookup("influxdb-password"))
 	//	viper.BindPFlag("org", rootCmd.PersistentFlags().Lookup("org"))
 }
 
@@ -88,7 +102,6 @@ func initConfig() {
 	viper.SetEnvPrefix("piot")
 	replacer := strings.NewReplacer(".", "_")
 	viper.SetEnvKeyReplacer(replacer)
-	viper.SetDefault("piot.host", "iot.pavoucek.net/api")
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.

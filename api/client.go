@@ -13,24 +13,24 @@ import (
 )
 
 type Client struct {
-	user      string
-	password  string
-	piot_host string
-	log       *logging.Logger
-	token     string
+	user     string
+	password string
+	url      string
+	log      *logging.Logger
+	token    string
 }
 
 func NewClient(logger *logging.Logger) *Client {
 	client := &Client{}
 	client.log = logger
-	client.user = viper.GetString("user")
-	client.password = viper.GetString("password")
-	client.piot_host = viper.GetString("piot.host")
+	client.user = viper.GetString("piot.user")
+	client.password = viper.GetString("piot.password")
+	client.url = viper.GetString("piot.url")
 	client.token = ""
 
 	client.log.Debug("New instance of api client created:")
 	client.log.Debugf("  user: %s", client.user)
-	client.log.Debugf("  piot host: %s", client.piot_host)
+	client.log.Debugf("  piot url: %s", client.url)
 
 	return client
 }
@@ -39,7 +39,7 @@ func (c *Client) execute(method string, path string, body *[]byte) (*http.Respon
 	var bodyIoReader io.Reader
 
 	var url string
-	url = fmt.Sprintf("https://%s/%s", c.piot_host, path)
+	url = fmt.Sprintf("%s/%s", c.url, path)
 
 	c.log.Debugf("------%s Request to: %s", method, url)
 	if body != nil {
