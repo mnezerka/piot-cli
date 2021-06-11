@@ -25,7 +25,7 @@ var thingCmd = &cobra.Command{
 		err := client.Login()
 		handleError(err)
 
-		things, err := client.GetThings(config_all)
+		things, err := client.GetThings(config_all, nil)
 		handleError(err)
 
 		// use tabwriter.Debug flag (last arg) to see column borders

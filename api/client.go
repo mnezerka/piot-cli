@@ -224,7 +224,9 @@ func (c *Client) Login() error {
 	return nil
 }
 
-func (c *Client) GetThings(all bool) ([]Thing, error) {
+type ThingFilterFunctionType = func(s *Thing) bool
+
+func (c *Client) GetThings(all bool, filter ThingFilterFunctionType) ([]Thing, error) {
 
 	var result []Thing
 
@@ -257,7 +259,20 @@ func (c *Client) GetThings(all bool) ([]Thing, error) {
 		c.log.Error(err)
 	}
 
-	return data.Data.Things, nil
+	result = data.Data.Things
+
+	// apply filtering if filter function was provided
+	if filter != nil {
+		var filteredResult []Thing
+		for _, thing := range data.Data.Things {
+			if filter(&thing) {
+				filteredResult = append(filteredResult, thing)
+			}
+		}
+		result = filteredResult
+	}
+
+	return result, nil
 }
 
 type OrgFilterFunctionType = func(s *Org) bool
@@ -266,7 +281,7 @@ func (c *Client) GetOrgs(filter OrgFilterFunctionType) ([]Org, error) {
 
 	var result []Org
 
-	gql := "{orgs {id, name}}"
+	gql := "{orgs {id, name, influxdb}}"
 
 	resp, err := c.gqlQuerySuccessful(gql)
 	if err != nil {
@@ -389,7 +404,7 @@ func (c *Client) GetUserProfile() (UserProfile, error) {
 	gql := `
 		{
 			userProfile {
-				email, is_admin, org_id, orgs {id, name} 
+				email, is_admin, org_id, orgs {id, name, influxdb} 
 			}
 		}
 	`

@@ -13,15 +13,9 @@ type Thing struct {
 }
 
 type Org struct {
-	Id   string `json:"id"`
-	Name string `json:"name"`
-}
-
-type UserProfile struct {
-	Email   string `json:"email"`
-	IsAdmin bool   `json:"is_admin"`
-	OrgId   string `json:"org_id"`
-	Orgs    []Org  `json:"orgs"`
+	Id       string `json:"id"`
+	Name     string `json:"name"`
+	InfluxDb string `json:"influxdb"`
 }
 
 type GqlLocation struct {

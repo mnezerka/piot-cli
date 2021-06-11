@@ -4,6 +4,8 @@
 *.dll
 *.so
 *.dylib
+*.swp
+.vscode
 piot-cli
 
 # Test binary, built with `go test -c`
@@ -14,3 +16,5 @@ piot-cli
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+.DS_Store

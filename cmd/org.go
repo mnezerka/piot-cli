@@ -26,7 +26,7 @@ var orgCmd = &cobra.Command{
 		handleError(err)
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, OUTPUT_PADDING, ' ', 0)
-		fmt.Fprintf(w, "NAME\tMEMBER\tCURRENT\t\n")
+		fmt.Fprintf(w, "NAME\tMEMBER\tCURRENT\tINFLUXDB\t\n")
 		for i := 0; i < len(orgs); i++ {
 
 			isCurrent := ""
@@ -42,10 +42,11 @@ var orgCmd = &cobra.Command{
 				}
 			}
 
-			fmt.Fprintf(w, "%s\t%s\t%s\t\n",
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t\n",
 				orgs[i].Name,
 				isMember,
 				isCurrent,
+				orgs[i].InfluxDb,
 			)
 		}
 		w.Flush()
