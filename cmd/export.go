@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"piot-cli/api"
+	"strings"
 	"time"
 
 	influx "github.com/influxdata/influxdb1-client/v2"
@@ -13,17 +16,19 @@ import (
 )
 
 var (
-	config_from string
-	config_to   string
+	config_from  string
+	config_to    string
+	config_names string
 )
 
 const TIME_LAYOUT string = "2006-01-02"
+const CSV_EMPTY_VALUE float64 = 9999
 
 //const DATE_LAYOUT string = "2006-01-02T15:04:05"
 
 type SensorValue struct {
-	Date  time.Time
-	Value float64
+	Date  time.Time `json:"date" csv:"date"`
+	Value float64   `json:"value" csv:"value"`
 }
 
 func CreateFromInfluxResponse(response []interface{}) (*SensorValue, error) {
@@ -48,6 +53,72 @@ func CreateFromInfluxResponse(response []interface{}) (*SensorValue, error) {
 	return &result, nil
 }
 
+func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
+
+	// prepare commplete list of date time stamps (first column)
+	rows := map[time.Time][]float64{}
+
+	for _, sensor_values := range sensor_data {
+		for _, sensor_value := range sensor_values {
+			if _, ok := rows[sensor_value.Date]; !ok {
+				rows[sensor_value.Date] = []float64{}
+			}
+		}
+	}
+
+	header := []string{"date"}
+
+	for sensor_name, sensor_values := range sensor_data {
+		header = append(header, sensor_name)
+
+		// go through global table rows
+		for ts, _ := range rows {
+			// add value for timestamp o empty value (0)
+			exists := false
+			for _, sensor_value := range sensor_values {
+				if sensor_value.Date == ts {
+					rows[ts] = append(rows[ts], sensor_value.Value)
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				rows[ts] = append(rows[ts], CSV_EMPTY_VALUE)
+			}
+		}
+	}
+
+	// build csv
+	var records [][]string
+
+	// csv header
+	records = append(records, header)
+
+	// csv data rows
+	for ts, values := range rows {
+		row_str := []string{ts.String()}
+		for _, value := range values {
+			//if value == CSV_EMPTY_VALUE {
+			//row_str = append(row_str, "nil")
+			//} else {
+			row_str = append(row_str, fmt.Sprintf("%.2f", value))
+			//}
+		}
+		records = append(records, row_str)
+	}
+
+	// golang struct -> CSV string
+	buf := bytes.NewBufferString("")
+	w := csv.NewWriter(buf)
+	w.WriteAll(records) // calls Flush internally
+
+	if err := w.Error(); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
 var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Export piot data (sensors, things, etc.)",
@@ -70,11 +141,9 @@ var exportThingsCmd = &cobra.Command{
 		handleError(err)
 
 		if config_format == "csv" {
-
 			b, err := csvutil.Marshal(things)
 			handleError(err)
 			fmt.Println(string(b))
-
 		} else {
 			thingsJson, err := json.MarshalIndent(things, "", "  ")
 			handleError(err)
@@ -106,7 +175,12 @@ var exportSensorsCmd = &cobra.Command{
 			handleError(err)
 		}
 
-		// check if to > from
+		var names []string
+		if config_names != "" {
+			names = strings.Split(config_names, ",")
+		}
+
+		// TODO: check if to > from
 
 		// get api client
 		client := api.NewClient(log)
@@ -119,12 +193,10 @@ var exportSensorsCmd = &cobra.Command{
 		org, err := profile.GetActiveOrg()
 		handleError(err)
 
-		log.Infof("Influx url: %s", viper.GetString("influxdb.url"))
-		log.Infof("Influx user: %s", viper.GetString("influxdb.user"))
-		log.Infof("Influx password: %s", viper.GetString("influxdb.password"))
-
-		log.Infof("From: %s", date_from)
-		log.Infof("To: %s", date_to)
+		log.Infof("Export params:")
+		log.Infof("  from: %s", date_from)
+		log.Infof("  to: %s", date_to)
+		log.Infof("  names: %s", names)
 
 		ic, err := influx.NewHTTPClient(influx.HTTPConfig{
 			Addr:     viper.GetString("influxdb.url"),
@@ -138,10 +210,25 @@ var exportSensorsCmd = &cobra.Command{
 		things, err := client.GetThings(false, func(thing *api.Thing) bool { return thing.Type == "sensor" })
 		handleError(err)
 
-		result_json := map[string][]SensorValue{}
+		sensor_data := map[string][]SensorValue{}
 
 		// fetch data for sensors (one by one)
 		for _, thing := range things {
+
+			// filter things if names flag was specified
+			if len(names) > 0 {
+				skip := true
+				for _, name := range names {
+					if thing.Name == name {
+						skip = false
+						break
+					}
+				}
+				if skip {
+					log.Infof("Skipping sensor '%s'", thing.Name)
+					continue
+				}
+			}
 
 			log.Infof("Fetching data for sensor '%s.%s'", org.Name, thing.Name)
 			query := fmt.Sprintf(
@@ -149,6 +236,8 @@ var exportSensorsCmd = &cobra.Command{
 				date_from.Format(time.RFC3339),
 				date_to.Format(time.RFC3339),
 				thing.Id)
+
+			log.Debugf("query: %s", query)
 
 			q := influx.NewQuery(query, org.InfluxDb, "")
 
@@ -159,21 +248,37 @@ var exportSensorsCmd = &cobra.Command{
 				handleError(response.Error())
 			}
 
-			result_json[thing.Name] = []SensorValue{}
+			log.Debugf("response: %s", response)
+
+			if len(response.Results[0].Series) == 0 {
+				log.Infof("No influxdb data for sensor  '%s.%s'", org.Name, thing.Name)
+				sensor_data[thing.Name] = []SensorValue{}
+				continue
+			}
+
+			sensor_data[thing.Name] = []SensorValue{}
 
 			// we are interested in results from first statement and first entry from series
 			for _, value := range response.Results[0].Series[0].Values {
-				fmt.Printf("%v\n", value)
+				//fmt.Printf("%v\n", value)
 
 				sensor_value, err := CreateFromInfluxResponse(value)
 				handleError(err)
 
-				result_json[thing.Name] = append(result_json[thing.Name], *sensor_value)
+				sensor_data[thing.Name] = append(sensor_data[thing.Name], *sensor_value)
 			}
-
 		}
 
-		fmt.Printf("\n\n%v\n", result_json)
+		if config_format == "csv" {
+			//result_csv, err := csvutil.Marshal(sensor_data)
+			result_csv, err := SensorData2CsvRows(sensor_data)
+			handleError(err)
+			fmt.Println(string(result_csv))
+		} else {
+			result_json, err := json.MarshalIndent(sensor_data, "", "  ")
+			handleError(err)
+			fmt.Println(string(result_json))
+		}
 	},
 }
 
@@ -188,6 +293,5 @@ func init() {
 	exportSensorsCmd.Flags().StringVar(&config_format, "format", "json", "output format (json, csv)")
 	exportSensorsCmd.Flags().StringVar(&config_from, "from", "", "starting date in format "+TIME_LAYOUT)
 	exportSensorsCmd.Flags().StringVar(&config_to, "to", "", "end date in format "+TIME_LAYOUT)
-	//exportSensorsCmd.MarkFlagRequired("from")
-	//exportSensorsCmd.MarkFlagRequired("to")
+	exportSensorsCmd.Flags().StringVar(&config_names, "names", "", "limit export to particular sensor names (comma seperated list)")
 }
