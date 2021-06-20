@@ -13,6 +13,7 @@ import (
 var (
 	config_all        bool
 	config_thing_type string
+	config_long       bool
 )
 
 var thingCmd = &cobra.Command{
@@ -30,7 +31,11 @@ var thingCmd = &cobra.Command{
 
 		// use tabwriter.Debug flag (last arg) to see column borders
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, OUTPUT_PADDING, ' ', 0)
-		fmt.Fprintf(w, "NAME\tALIAS\tTYPE\tENABLED\t%s\tINFLUXDB\tMYSQL\t\n", fmt.Sprintf(DefaultColor, "LAST SEEN"))
+		if config_long {
+			fmt.Fprintf(w, "ID\tNAME\tALIAS\tTYPE\tENABLED\t%s\tINFLUXDB\tMYSQL\t\n", fmt.Sprintf(DefaultColor, "LAST SEEN"))
+		} else {
+			fmt.Fprintf(w, "NAME\tALIAS\tTYPE\tENABLED\t%s\tINFLUXDB\tMYSQL\t\n", fmt.Sprintf(DefaultColor, "LAST SEEN"))
+		}
 		for i := 0; i < len(things); i++ {
 
 			tm := time.Unix(int64(things[i].LastSeen), 0)
@@ -48,15 +53,28 @@ var thingCmd = &cobra.Command{
 				age = fmt.Sprintf(DefaultColor, age)
 			}
 
-			fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%s\t%v\t%v\t\n",
-				things[i].Name,
-				things[i].Alias,
-				things[i].Type,
-				things[i].Enabled,
-				age,
-				things[i].StoreInfluxDb,
-				things[i].StoreMysqlDb,
-			)
+			if config_long {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%v\t%s\t%v\t%v\t\n",
+					things[i].Id,
+					things[i].Name,
+					things[i].Alias,
+					things[i].Type,
+					things[i].Enabled,
+					age,
+					things[i].StoreInfluxDb,
+					things[i].StoreMysqlDb,
+				)
+			} else {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%s\t%v\t%v\t\n",
+					things[i].Name,
+					things[i].Alias,
+					things[i].Type,
+					things[i].Enabled,
+					age,
+					things[i].StoreInfluxDb,
+					things[i].StoreMysqlDb,
+				)
+			}
 		}
 		w.Flush()
 	},
@@ -98,6 +116,7 @@ var thingCreateCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(thingCmd)
 	thingCmd.Flags().BoolVar(&config_all, "all", false, "Show all things across orgs")
+	thingCmd.Flags().BoolVarP(&config_long, "long", "l", false, "use long listing (show more columns)")
 
 	thingCmd.AddCommand(thingDeleteCmd)
 
