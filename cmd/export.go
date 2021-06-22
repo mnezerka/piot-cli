@@ -98,11 +98,11 @@ func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
 	for ts, values := range rows {
 		row_str := []string{ts.String()}
 		for _, value := range values {
-			//if value == CSV_EMPTY_VALUE {
-			//row_str = append(row_str, "nil")
-			//} else {
-			row_str = append(row_str, fmt.Sprintf("%.2f", value))
-			//}
+			if value == CSV_EMPTY_VALUE {
+				row_str = append(row_str, "nil")
+			} else {
+				row_str = append(row_str, fmt.Sprintf("%.2f", value))
+			}
 		}
 		records = append(records, row_str)
 	}
@@ -269,15 +269,18 @@ var exportSensorsCmd = &cobra.Command{
 			}
 		}
 
-		if config_format == "csv" {
+		switch config_format {
+		case "csv":
 			//result_csv, err := csvutil.Marshal(sensor_data)
 			result_csv, err := SensorData2CsvRows(sensor_data)
 			handleError(err)
 			fmt.Println(string(result_csv))
-		} else {
+		case "json", "":
 			result_json, err := json.MarshalIndent(sensor_data, "", "  ")
 			handleError(err)
 			fmt.Println(string(result_json))
+		default:
+			handleError(fmt.Errorf("Unkonwn output format: %s", config_format))
 		}
 	},
 }
