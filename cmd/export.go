@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"piot-cli/api"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ var (
 )
 
 const TIME_LAYOUT string = "2006-01-02"
-const CSV_EMPTY_VALUE float64 = 9999
+const SENSOR_VALUE_EMPTY float64 = 9999
 
 //const DATE_LAYOUT string = "2006-01-02T15:04:05"
 
@@ -45,9 +46,16 @@ func CreateFromInfluxResponse(response []interface{}) (*SensorValue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Cannot parse sensor time from InfluxDB response (%v): %v", response, err)
 	}
-	result.Value, err = response[1].(json.Number).Float64()
-	if err != nil {
-		return nil, fmt.Errorf("Cannot parse sensor value from InfluxDB response (%v): %v", response, err)
+
+	// response value can be nil in case there are no measurements in whole
+	// grouping interval (1 hour)
+	if response[1] == nil {
+		result.Value = SENSOR_VALUE_EMPTY
+	} else {
+		result.Value, err = response[1].(json.Number).Float64()
+		if err != nil {
+			return nil, fmt.Errorf("Cannot parse sensor value from InfluxDB response (%v): %v", response, err)
+		}
 	}
 
 	return &result, nil
@@ -56,6 +64,8 @@ func CreateFromInfluxResponse(response []interface{}) (*SensorValue, error) {
 func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
 
 	// prepare commplete list of date time stamps (first column)
+	// note: the map is not sorted !, it must be sorted e.g. before writing
+	//       to output stream
 	rows := map[time.Time][]float64{}
 
 	for _, sensor_values := range sensor_data {
@@ -83,7 +93,7 @@ func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
 				}
 			}
 			if !exists {
-				rows[ts] = append(rows[ts], CSV_EMPTY_VALUE)
+				rows[ts] = append(rows[ts], SENSOR_VALUE_EMPTY)
 			}
 		}
 	}
@@ -94,11 +104,20 @@ func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
 	// csv header
 	records = append(records, header)
 
-	// csv data rows
-	for ts, values := range rows {
-		row_str := []string{ts.String()}
+	time_stamps_sorted := make([]time.Time, 0, len(rows))
+	for time_stamp := range rows {
+		time_stamps_sorted = append(time_stamps_sorted, time_stamp)
+	}
+	sort.Slice(time_stamps_sorted, func(i, j int) bool {
+		return time_stamps_sorted[i].Before(time_stamps_sorted[j])
+	})
+
+	// loop through rows in time sequence (sorted keys)
+	for _, time_stamp := range time_stamps_sorted {
+		values := rows[time_stamp]
+		row_str := []string{time_stamp.String()}
 		for _, value := range values {
-			if value == CSV_EMPTY_VALUE {
+			if value == SENSOR_VALUE_EMPTY {
 				row_str = append(row_str, "nil")
 			} else {
 				row_str = append(row_str, fmt.Sprintf("%.2f", value))
