@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/360EntSecGroup-Skylar/excelize/v2"
 	influx "github.com/influxdata/influxdb1-client/v2"
 	"github.com/jszwec/csvutil"
 	"github.com/spf13/cobra"
@@ -61,7 +62,7 @@ func CreateFromInfluxResponse(response []interface{}) (*SensorValue, error) {
 	return &result, nil
 }
 
-func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
+func PrepareTabularData(sensor_data map[string][]SensorValue) ([]string, []time.Time, map[time.Time][]float64, error) {
 
 	// prepare commplete list of date time stamps (first column)
 	// note: the map is not sorted !, it must be sorted e.g. before writing
@@ -98,12 +99,7 @@ func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
 		}
 	}
 
-	// build csv
-	var records [][]string
-
-	// csv header
-	records = append(records, header)
-
+	// prepare list  of sorted timestamps
 	time_stamps_sorted := make([]time.Time, 0, len(rows))
 	for time_stamp := range rows {
 		time_stamps_sorted = append(time_stamps_sorted, time_stamp)
@@ -111,6 +107,20 @@ func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
 	sort.Slice(time_stamps_sorted, func(i, j int) bool {
 		return time_stamps_sorted[i].Before(time_stamps_sorted[j])
 	})
+
+	return header, time_stamps_sorted, rows, nil
+}
+
+func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
+
+	header, time_stamps_sorted, rows, err := PrepareTabularData(sensor_data)
+	handleError(err)
+
+	// build csv
+	var records [][]string
+
+	// csv header
+	records = append(records, header)
 
 	// loop through rows in time sequence (sorted keys)
 	for _, time_stamp := range time_stamps_sorted {
@@ -134,6 +144,70 @@ func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
 	if err := w.Error(); err != nil {
 		return "", err
 	}
+
+	return buf.String(), nil
+}
+
+func SensorData2Excel(sensor_data map[string][]SensorValue) (string, error) {
+
+	header, time_stamps_sorted, rows, err := PrepareTabularData(sensor_data)
+	handleError(err)
+
+	// build xlsx
+	f := excelize.NewFile()
+
+	// Get first sheet and rename it to sensors
+	sheet_name := f.GetSheetList()[0]
+	sheet_ix := f.GetSheetIndex(sheet_name)
+	f.SetSheetName(sheet_name, "sensors")
+	sheet_name = "sensors"
+
+	// Set active sheet of the workbook.
+	f.SetActiveSheet(sheet_ix)
+
+	// header
+	for i, sensor_name := range header {
+		cell_name, err := excelize.CoordinatesToCellName(i+1, 1, false)
+		handleError(err)
+		f.SetCellValue(sheet_name, cell_name, sensor_name)
+	}
+
+	// loop through rows in time sequence (sorted timestamp keys)
+	excel_row_ix := 2
+	for _, time_stamp := range time_stamps_sorted {
+		excel_col_ix := 1
+
+		// write timestamp
+		cell_name, err := excelize.CoordinatesToCellName(excel_col_ix, excel_row_ix, false)
+		handleError(err)
+		f.SetCellValue(sheet_name, cell_name, time_stamp.String())
+
+		// write values
+		excel_col_ix++
+		for _, value := range rows[time_stamp] {
+			cell_name, err := excelize.CoordinatesToCellName(excel_col_ix, excel_row_ix, false)
+			handleError(err)
+
+			if value == SENSOR_VALUE_EMPTY {
+				f.SetCellValue(sheet_name, cell_name, "nil")
+			} else {
+				f.SetCellValue(sheet_name, cell_name, value)
+			}
+			excel_col_ix++
+		}
+		excel_row_ix++
+	}
+	buf := bytes.NewBufferString("")
+
+	_, err = f.WriteTo(buf)
+	handleError(err)
+
+	// Save spreadsheet by the given path.
+	/*
+		if err := f.SaveAs("Book1.xlsx"); err != nil {
+			fmt.Println(err)
+		}
+	*/
 
 	return buf.String(), nil
 }
@@ -290,10 +364,13 @@ var exportSensorsCmd = &cobra.Command{
 
 		switch config_format {
 		case "csv":
-			//result_csv, err := csvutil.Marshal(sensor_data)
 			result_csv, err := SensorData2CsvRows(sensor_data)
 			handleError(err)
 			fmt.Println(string(result_csv))
+		case "xlsx":
+			result_xlsx, err := SensorData2Excel(sensor_data)
+			handleError(err)
+			fmt.Println(string(result_xlsx))
 		case "json", "":
 			result_json, err := json.MarshalIndent(sensor_data, "", "  ")
 			handleError(err)
@@ -309,7 +386,7 @@ func init() {
 	//exportCmd.Flags().BoolVar(&config_all, "all", false, "Show all things across orgs")
 
 	exportCmd.AddCommand(exportThingsCmd)
-	exportThingsCmd.Flags().StringVar(&config_format, "format", "json", "output format (json, csv)")
+	exportThingsCmd.Flags().StringVar(&config_format, "format", "json", "output format (json, csv, xlsx)")
 
 	exportCmd.AddCommand(exportSensorsCmd)
 	exportSensorsCmd.Flags().StringVar(&config_format, "format", "json", "output format (json, csv)")
