@@ -2,4 +2,4 @@ all: build
 
 .PHONY: build
 build:
-	go build
+	go build -o piot
