@@ -18,9 +18,10 @@ import (
 )
 
 var (
-	config_from  string
-	config_to    string
-	config_names string
+	config_from   string
+	config_to     string
+	config_names  string
+	config_output string
 )
 
 const TIME_LAYOUT string = "2006-01-02"
@@ -148,7 +149,7 @@ func SensorData2CsvRows(sensor_data map[string][]SensorValue) (string, error) {
 	return buf.String(), nil
 }
 
-func SensorData2Excel(sensor_data map[string][]SensorValue) (string, error) {
+func SensorData2Excel(sensor_data map[string][]SensorValue, output_file_path string) error {
 
 	header, time_stamps_sorted, rows, err := PrepareTabularData(sensor_data)
 	handleError(err)
@@ -197,27 +198,24 @@ func SensorData2Excel(sensor_data map[string][]SensorValue) (string, error) {
 		}
 		excel_row_ix++
 	}
-	buf := bytes.NewBufferString("")
-
-	_, err = f.WriteTo(buf)
-	handleError(err)
-
-	// Save spreadsheet by the given path.
 	/*
-		if err := f.SaveAs("Book1.xlsx"); err != nil {
-			fmt.Println(err)
-		}
+		this is how to write xlsx stream to stdout
+		buf := bytes.NewBufferString("")
+		_, err = f.WriteTo(buf)
+		handleError(err)
 	*/
 
-	return buf.String(), nil
+	// Save spreadsheet by the given path.
+	err = f.SaveAs(output_file_path)
+	handleError(err)
+
+	return nil
 }
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Export piot data (sensors, things, etc.)",
 	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
-	},
 }
 
 var exportThingsCmd = &cobra.Command{
@@ -266,6 +264,18 @@ var exportSensorsCmd = &cobra.Command{
 			// convert from and to time.Time
 			date_to, err = time.Parse(TIME_LAYOUT, config_to)
 			handleError(err)
+		}
+
+		if config_format != "" {
+			switch config_format {
+			case "csv", "json":
+			case "xlsx":
+				if config_output == "" {
+					handleError(fmt.Errorf("output format xls requires output to file (see -o flag)"))
+				}
+			default:
+				handleError(fmt.Errorf("Unkonwn output format: %s", config_format))
+			}
 		}
 
 		var names []string
@@ -368,9 +378,8 @@ var exportSensorsCmd = &cobra.Command{
 			handleError(err)
 			fmt.Println(string(result_csv))
 		case "xlsx":
-			result_xlsx, err := SensorData2Excel(sensor_data)
+			err := SensorData2Excel(sensor_data, config_output)
 			handleError(err)
-			fmt.Println(string(result_xlsx))
 		case "json", "":
 			result_json, err := json.MarshalIndent(sensor_data, "", "  ")
 			handleError(err)
@@ -387,10 +396,12 @@ func init() {
 
 	exportCmd.AddCommand(exportThingsCmd)
 	exportThingsCmd.Flags().StringVar(&config_format, "format", "json", "output format (json, csv, xlsx)")
+	exportThingsCmd.Flags().StringVarP(&config_output, "output", "o", "", "path to file to write export output")
 
 	exportCmd.AddCommand(exportSensorsCmd)
-	exportSensorsCmd.Flags().StringVar(&config_format, "format", "json", "output format (json, csv)")
+	exportSensorsCmd.Flags().StringVarP(&config_format, "format", "f", "json", "output format (json, csv)")
 	exportSensorsCmd.Flags().StringVar(&config_from, "from", "", "starting date in format "+TIME_LAYOUT)
 	exportSensorsCmd.Flags().StringVar(&config_to, "to", "", "end date in format "+TIME_LAYOUT)
-	exportSensorsCmd.Flags().StringVar(&config_names, "names", "", "limit export to particular sensor names (comma seperated list)")
+	exportSensorsCmd.Flags().StringVarP(&config_names, "names", "n", "", "limit export to particular sensor names (comma seperated list)")
+	exportSensorsCmd.Flags().StringVarP(&config_output, "output", "o", "", "path to file to write export output")
 }
