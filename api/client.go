@@ -238,7 +238,7 @@ func (c *Client) GetThings(all bool, filter ThingFilterFunctionType) ([]Thing, e
 	gql := fmt.Sprintf(`
 		{
 			things (all: %s) {
-				id, name, type, alias, enabled, last_seen, last_seen_interval, store_influxdb, store_mysqldb
+				id, name, type, alias, enabled, last_seen, last_seen_interval, store_influxdb, store_mysqldb, sensor {value, class, unit}
 			}
 		}
 		`, all_str)

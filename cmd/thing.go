@@ -32,9 +32,9 @@ var thingCmd = &cobra.Command{
 		// use tabwriter.Debug flag (last arg) to see column borders
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, OUTPUT_PADDING, ' ', 0)
 		if config_long {
-			fmt.Fprintf(w, "ID\tNAME\tALIAS\tTYPE\tENABLED\t%s\tINFLUXDB\tMYSQL\t\n", fmt.Sprintf(DefaultColor, "LAST SEEN"))
+			fmt.Fprintf(w, "ID\tNAME\tALIAS\tTYPE/CLASS\tENABLED\t%s\tVALUE\tINFLUXDB\tMYSQL\t\n", fmt.Sprintf(DefaultColor, "LAST SEEN"))
 		} else {
-			fmt.Fprintf(w, "NAME\tALIAS\tTYPE\tENABLED\t%s\tINFLUXDB\tMYSQL\t\n", fmt.Sprintf(DefaultColor, "LAST SEEN"))
+			fmt.Fprintf(w, "NAME\tALIAS\tTYPE/CLASS\tENABLED\t%s\tVALUE\t\n", fmt.Sprintf(DefaultColor, "LAST SEEN"))
 		}
 		for i := 0; i < len(things); i++ {
 
@@ -54,25 +54,25 @@ var thingCmd = &cobra.Command{
 			}
 
 			if config_long {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%v\t%s\t%v\t%v\t\n",
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%v\t%s\t%v\t%v\t%v\t\n",
 					things[i].Id,
 					things[i].Name,
 					things[i].Alias,
-					things[i].Type,
+					things[i].Type+"/"+things[i].Sensor.Class,
 					things[i].Enabled,
 					age,
+					things[i].Sensor.Value,
 					things[i].StoreInfluxDb,
 					things[i].StoreMysqlDb,
 				)
 			} else {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%s\t%v\t%v\t\n",
+				fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%s\t%v\t\n",
 					things[i].Name,
 					things[i].Alias,
-					things[i].Type,
+					things[i].Type+"/"+things[i].Sensor.Class,
 					things[i].Enabled,
 					age,
-					things[i].StoreInfluxDb,
-					things[i].StoreMysqlDb,
+					things[i].Sensor.Value,
 				)
 			}
 		}
