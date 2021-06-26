@@ -15,4 +15,4 @@ limitations under the License.
 */
 package cmd
 
-var appVersion string = "2.4.0"
+var appVersion string = "1.0.1"
