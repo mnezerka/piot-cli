@@ -87,9 +87,9 @@ Command lists all organizations you are authorized to see:
 ```
 ./piot org
 
-NAME          MEMBER   CURRENT   INFLUXDB      
-PIOT          X                  piot          
-JASO          X        X         jaso          
+NAME          MEMBER   CURRENT   INFLUXDB
+PIOT          X                  piot
+JASO          X        X         jaso
 ```
 where `MEMBER` column indicates if you are member of given org and `CURRENT`
 column indicates your current organization
@@ -111,11 +111,11 @@ List all things assigned to your current organization:
 ```
 ./piot thing
 
-NAME          ALIAS         TYPE/CLASS           ENABLED   LAST SEEN   VALUE   
-B3007-Temp                  sensor/temperature   true      44s         4.6     
-B3007                       device/              true      44s                 
-B3006-Temp2   B3006-Temp2   sensor/temperature   true      42s         -13.7   
-B3006-Temp1   B3006-Temp1   sensor/temperature   true      42s         -15.4   
+NAME          ALIAS         TYPE/CLASS           ENABLED   LAST SEEN   VALUE
+B3007-Temp                  sensor/temperature   true      44s         4.6
+B3007                       device/              true      44s
+B3006-Temp2   B3006-Temp2   sensor/temperature   true      42s         -13.7
+B3006-Temp1   B3006-Temp1   sensor/temperature   true      42s         -15.4
 B3006                       device/              true      42s
 ```
 
