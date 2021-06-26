@@ -151,7 +151,7 @@ Export sensors from current org to csv (*last 24 hours*):
 
 Export sensors from current org to xlsx (*last 24 hours*):
 ```
-./piot export sensors --format xslx 
+./piot export sensors --format xlsx 
 ```
 
 Export only sensors selected by name, for specific time interval (two days) to

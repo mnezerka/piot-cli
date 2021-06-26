@@ -271,10 +271,10 @@ var exportSensorsCmd = &cobra.Command{
 			case "csv", "json":
 			case "xlsx":
 				if config_output == "" {
-					handleError(fmt.Errorf("output format xls requires output to file (see -o flag)"))
+					handleError(fmt.Errorf("output format xlsx requires output to file (see -o flag)"))
 				}
 			default:
-				handleError(fmt.Errorf("Unkonwn output format: %s", config_format))
+				handleError(fmt.Errorf("Unkonwn output format: %s, try to run command with -h flag to see supported formats", config_format))
 			}
 		}
 
@@ -399,7 +399,7 @@ func init() {
 	exportThingsCmd.Flags().StringVarP(&config_output, "output", "o", "", "path to file to write export output")
 
 	exportCmd.AddCommand(exportSensorsCmd)
-	exportSensorsCmd.Flags().StringVarP(&config_format, "format", "f", "json", "output format (json, csv)")
+	exportSensorsCmd.Flags().StringVarP(&config_format, "format", "f", "json", "output format (json, csv, xlsx)")
 	exportSensorsCmd.Flags().StringVar(&config_from, "from", "", "starting date in format "+TIME_LAYOUT)
 	exportSensorsCmd.Flags().StringVar(&config_to, "to", "", "end date in format "+TIME_LAYOUT)
 	exportSensorsCmd.Flags().StringVarP(&config_names, "names", "n", "", "limit export to particular sensor names (comma seperated list)")
