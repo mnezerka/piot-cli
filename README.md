@@ -159,3 +159,23 @@ csv format:
 ```
 ./piot export sensors --names B3007-Temp,B3006-Temp1 --format csv --from 2021-06-20 --to 2021-06-22
 ```
+
+## Administration
+
+Commands for administration of PIOT infrastructure
+
+### InfluxDb - list databases
+
+List all influxdb databases:
+
+```
+./piot admin infludb 
+```
+
+### InfluxDb - create database
+
+Create new influxdb database:
+
+```
+./piot admin infludb create db_name
+```

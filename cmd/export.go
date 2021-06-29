@@ -84,7 +84,7 @@ func PrepareTabularData(sensor_data map[string][]SensorValue) ([]string, []time.
 		header = append(header, sensor_name)
 
 		// go through global table rows
-		for ts, _ := range rows {
+		for ts := range rows {
 			// add value for timestamp o empty value (0)
 			exists := false
 			for _, sensor_value := range sensor_values {
